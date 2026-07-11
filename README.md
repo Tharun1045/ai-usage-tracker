@@ -41,15 +41,16 @@ AIDash has built-in support for the following tools. It will automatically detec
 
 No Python, Node.js, or Git required. Works on any Windows machine.
 
+## ⬇️ [Download AIDash.exe](https://github.com/Tharun1045/ai-usage-tracker/raw/main/dist/AIDash.exe)
+
 **Steps:**
-1. Go to the **`dist/`** folder in this repository (or the **Releases** tab on GitHub).
-2. Download **`AIDash.exe`**.
-3. **Double-click** `AIDash.exe`.
-4. It will automatically:
+1. Click the download link above to get **`AIDash.exe`**.
+2. **Double-click** `AIDash.exe`.
+3. It will automatically:
    - Scan your machine for AI tool logs
    - Start the local dashboard server
    - Open your browser at **[http://localhost:8080](http://localhost:8080)**
-5. To stop it, close the terminal/console window that appears.
+4. To stop it, close the terminal/console window that appears.
 
 > ⚠️ **Windows SmartScreen Warning**: The first time you run it, Windows may show a "Windows protected your PC" message. Click **"More info" → "Run anyway"**. This is normal for unsigned executables.
 
