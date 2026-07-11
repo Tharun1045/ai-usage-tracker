@@ -177,10 +177,9 @@ def show_stats():
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python cli.py [scan|today|stats|dashboard]")
-        sys.exit(1)
-        
-    cmd = sys.argv[1].lower()
+        cmd = "dashboard"  # Default to dashboard when double-clicked
+    else:
+        cmd = sys.argv[1].lower()
     
     if cmd == "scan":
         print("Scanning multi-agent log sessions...")
