@@ -16,11 +16,15 @@ def get_db_connection():
     return conn
 
 def calculate_cost(agent_type, input_tok, cached_tok, output_tok):
-    if agent_type == "claude":
+    if agent_type == "claude" or agent_type == "cursor" or agent_type == "cline" or agent_type == "roocode":
         return ((input_tok - cached_tok) * 3.0 + cached_tok * 1.5 + output_tok * 15.0) / 1_000_000.0
     elif agent_type == "gemini":
         return ((input_tok - cached_tok) * 0.075 + cached_tok * 0.0375 + output_tok * 0.3) / 1_000_000.0
-    else:
+    elif agent_type == "copilot":
+        return ((input_tok - cached_tok) * 5.0 + cached_tok * 2.5 + output_tok * 15.0) / 1_000_000.0
+    elif agent_type == "groq":
+        return ((input_tok - cached_tok) * 0.60 + cached_tok * 0.30 + output_tok * 0.80) / 1_000_000.0
+    else: # codex
         return ((input_tok - cached_tok) * 15.0 + cached_tok * 7.5 + output_tok * 60.0) / 1_000_000.0
 
 def get_stats_data(agent_filter="all", date_filter=None):
@@ -69,16 +73,18 @@ def get_stats_data(agent_filter="all", date_filter=None):
         target_date_str = local_today
         target_date = datetime.strptime(local_today, "%Y-%m-%d")
         
+    agents_list = ["codex", "claude", "gemini", "copilot", "cursor", "groq", "cline", "roocode"]
+
     # Build daily history trends (storing agent splits)
     daily_7d = {}
     for i in range(6, -1, -1):
         d = (target_date - timedelta(days=i)).strftime("%Y-%m-%d")
-        daily_7d[d] = {"codex": 0, "claude": 0, "gemini": 0, "total": 0, "input": 0, "output": 0}
+        daily_7d[d] = {**{a: 0 for a in agents_list}, "total": 0, "input": 0, "output": 0}
         
     daily_30d = {}
     for i in range(29, -1, -1):
         d = (target_date - timedelta(days=i)).strftime("%Y-%m-%d")
-        daily_30d[d] = {"codex": 0, "claude": 0, "gemini": 0, "total": 0, "input": 0, "output": 0}
+        daily_30d[d] = {**{a: 0 for a in agents_list}, "total": 0, "input": 0, "output": 0}
         
     # Build Monthly buckets (3M, 6M, 12M/1Y)
     def get_month_buckets(end_date, num_months):
@@ -86,7 +92,7 @@ def get_stats_data(agent_filter="all", date_filter=None):
         curr = end_date
         for _ in range(num_months):
             key = curr.strftime("%Y-%m")
-            buckets[key] = {"codex": 0, "claude": 0, "gemini": 0, "total": 0, "input": 0, "output": 0}
+            buckets[key] = {**{a: 0 for a in agents_list}, "total": 0, "input": 0, "output": 0}
             first_of_month = curr.replace(day=1)
             curr = first_of_month - timedelta(days=1)
         return buckets
@@ -99,7 +105,7 @@ def get_stats_data(agent_filter="all", date_filter=None):
     hourly_hist = {}
     for i in range(24):
         h = f"{i:02d}:00"
-        hourly_hist[h] = {"codex": 0, "claude": 0, "gemini": 0, "total": 0}
+        hourly_hist[h] = {**{a: 0 for a in agents_list}, "total": 0}
         
     # Aggregated metrics for selected date / overall
     selected_summary = {"input": 0, "cached": 0, "output": 0, "reasoning": 0, "total": 0, "cost": 0.0, "count": 0}
@@ -115,7 +121,7 @@ def get_stats_data(agent_filter="all", date_filter=None):
     models_map = {}
     
     # Total breakdown counters by agent
-    agent_breakdown = {"codex": 0, "claude": 0, "gemini": 0}
+    agent_breakdown = {a: 0 for a in agents_list}
     
     for row in rows:
         agent = row["agent_type"]
@@ -194,7 +200,7 @@ def get_stats_data(agent_filter="all", date_filter=None):
                 if proj not in projects_map:
                     projects_map[proj] = {
                         "input": 0, "cached": 0, "output": 0, "reasoning": 0, "total": 0, "cost": 0.0,
-                        "agent_counts": {"codex": 0, "claude": 0, "gemini": 0}
+                        "agent_counts": {a: 0 for a in agents_list}
                     }
                 projects_map[proj]["input"] += in_t
                 projects_map[proj]["cached"] += cach_t
@@ -314,7 +320,16 @@ def get_stats_data(agent_filter="all", date_filter=None):
     for name, p_data in projects_map.items():
         # Find dominant agent for project and format name
         dominant_agent = max(p_data["agent_counts"], key=p_data["agent_counts"].get)
-        agent_display_names = {"codex": "Codex", "claude": "Claude", "gemini": "Gemini"}
+        agent_display_names = {
+            "codex": "Codex", 
+            "claude": "Claude", 
+            "gemini": "Gemini",
+            "copilot": "Copilot",
+            "cursor": "Cursor",
+            "groq": "Groq",
+            "cline": "Cline",
+            "roocode": "Roo Code"
+        }
         dominant_agent_name = agent_display_names.get(dominant_agent, "Codex")
         
         # Format name as "Project Name (Agent Name)" if in "All AIs" view (except for "ollama")
@@ -364,15 +379,18 @@ def get_stats_data(agent_filter="all", date_filter=None):
     
     # Sort dynamic trends list
     def format_trend_sorted(trend_dict):
-        return [{
-            "date": k,
-            "total_tokens": trend_dict[k]["total"],
-            "input_tokens": trend_dict[k]["input"],
-            "output_tokens": trend_dict[k]["output"],
-            "codex_tokens": trend_dict[k]["codex"],
-            "claude_tokens": trend_dict[k]["claude"],
-            "gemini_tokens": trend_dict[k]["gemini"]
-        } for k in sorted(trend_dict.keys())]
+        res = []
+        for k in sorted(trend_dict.keys()):
+            item = {
+                "date": k,
+                "total_tokens": trend_dict[k]["total"],
+                "input_tokens": trend_dict[k]["input"],
+                "output_tokens": trend_dict[k]["output"]
+            }
+            for agent in agents_list:
+                item[f"{agent}_tokens"] = trend_dict[k].get(agent, 0)
+            res.append(item)
+        return res
 
     daily_7d_sorted = format_trend_sorted(daily_7d)
     daily_30d_sorted = format_trend_sorted(daily_30d)
@@ -386,7 +404,7 @@ def get_stats_data(agent_filter="all", date_filter=None):
         for i in range(23, -1, -1):
             hourly_keys.append((now - timedelta(hours=i)).strftime("%H:00"))
         
-        hourly_hist = {k: {"codex": 0, "claude": 0, "gemini": 0, "total": 0} for k in hourly_keys}
+        hourly_hist = {k: {**{a: 0 for a in agents_list}, "total": 0} for k in hourly_keys}
         for row in rows:
             ts_str = row["timestamp"]
             tot_t = row["total_tokens"]
@@ -402,21 +420,26 @@ def get_stats_data(agent_filter="all", date_filter=None):
                         hourly_hist[hour_str]["total"] += tot_t
             except Exception:
                 pass
-        hourly_hist_sorted = [{
-            "hour": k,
-            "total_tokens": hourly_hist[k]["total"],
-            "codex_tokens": hourly_hist[k]["codex"],
-            "claude_tokens": hourly_hist[k]["claude"],
-            "gemini_tokens": hourly_hist[k]["gemini"]
-        } for k in hourly_keys]
+        hourly_hist_sorted = []
+        for k in hourly_keys:
+            item = {
+                "hour": k,
+                "total_tokens": hourly_hist[k]["total"]
+            }
+            for agent in agents_list:
+                item[f"{agent}_tokens"] = hourly_hist[k].get(agent, 0)
+            hourly_hist_sorted.append(item)
     else:
-        hourly_hist_sorted = [{
-            "hour": f"{i:02d}:00",
-            "total_tokens": hourly_hist[f"{i:02d}:00"]["total"],
-            "codex_tokens": hourly_hist[f"{i:02d}:00"]["codex"],
-            "claude_tokens": hourly_hist[f"{i:02d}:00"]["claude"],
-            "gemini_tokens": hourly_hist[f"{i:02d}:00"]["gemini"]
-        } for i in range(24)]
+        hourly_hist_sorted = []
+        for i in range(24):
+            k = f"{i:02d}:00"
+            item = {
+                "hour": k,
+                "total_tokens": hourly_hist[k]["total"]
+            }
+            for agent in agents_list:
+                item[f"{agent}_tokens"] = hourly_hist[k].get(agent, 0)
+            hourly_hist_sorted.append(item)
 
     # Dynamic selected date label
     selected_date_label = "Overall (All Time)" if is_all_time else target_date.strftime("%B %d, %Y")

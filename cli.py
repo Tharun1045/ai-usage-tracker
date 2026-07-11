@@ -17,10 +17,14 @@ def format_tokens(n):
     return str(n)
 
 def get_agent_pricing(agent):
-    if agent == "claude":
+    if agent in ("claude", "cursor", "cline", "roocode"):
         return 3.0, 1.5, 15.0
     elif agent == "gemini":
         return 0.075, 0.0375, 0.30
+    elif agent == "copilot":
+        return 5.0, 2.5, 15.0
+    elif agent == "groq":
+        return 0.60, 0.30, 0.80
     else: # codex
         return 15.0, 7.5, 60.0
 

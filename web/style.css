@@ -694,6 +694,26 @@ body {
     color: #8b5cf6;
 }
 
+.copilot-logo {
+    color: #2ea44f;
+}
+
+.cursor-logo {
+    color: #ffffff;
+}
+
+.groq-logo {
+    color: #f55035;
+}
+
+.cline-logo {
+    color: #ff5a00;
+}
+
+.roocode-logo {
+    color: #4f46e5;
+}
+
 .all-logo {
     color: #3b82f6;
 }
@@ -731,6 +751,36 @@ body {
     border: 1px solid rgba(139, 92, 246, 0.25);
 }
 
+.badge-mini.copilot {
+    background: rgba(46, 164, 79, 0.15);
+    color: #2ea44f;
+    border: 1px solid rgba(46, 164, 79, 0.25);
+}
+
+.badge-mini.cursor {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.badge-mini.groq {
+    background: rgba(245, 80, 53, 0.15);
+    color: #f55035;
+    border: 1px solid rgba(245, 80, 53, 0.25);
+}
+
+.badge-mini.cline {
+    background: rgba(255, 90, 0, 0.15);
+    color: #ff5a00;
+    border: 1px solid rgba(255, 90, 0, 0.25);
+}
+
+.badge-mini.roocode {
+    background: rgba(79, 70, 229, 0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(79, 70, 229, 0.25);
+}
+
 .badge-logo-svg {
     width: 9px;
     height: 9px;
@@ -759,4 +809,8 @@ body {
     height: 14px;
     vertical-align: middle;
     margin-right: 6px;
+}
+
+.hidden-tab {
+    display: none !important;
 }

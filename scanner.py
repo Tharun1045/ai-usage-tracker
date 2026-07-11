@@ -2,12 +2,42 @@ import os
 import json
 import glob
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 DB_PATH = os.path.expanduser("~/.codex/codex_usage.db")
 CODEX_SESSIONS_DIR = os.path.expanduser("~/.codex/sessions")
 CLAUDE_SESSIONS_DIR = os.path.expanduser("~/.claude/projects")
 GEMINI_SESSIONS_DIR = os.path.expanduser("~/.gemini/antigravity/brain")
+
+def get_vscode_storage_path(subpath):
+    import platform
+    home = os.path.expanduser("~")
+    system = platform.system()
+    if system == "Windows":
+        appdata = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")
+        return os.path.join(appdata, "Code", "User", subpath)
+    elif system == "Darwin":
+        return os.path.join(home, "Library", "Application Support", "Code", "User", subpath)
+    else:
+        return os.path.join(home, ".config", "Code", "User", subpath)
+
+def get_cursor_storage_path(subpath):
+    import platform
+    home = os.path.expanduser("~")
+    system = platform.system()
+    if system == "Windows":
+        appdata = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")
+        return os.path.join(appdata, "Cursor", "User", subpath)
+    elif system == "Darwin":
+        return os.path.join(home, "Library", "Application Support", "Cursor", "User", subpath)
+    else:
+        return os.path.join(home, ".config", "Cursor", "User", subpath)
+
+COPILOT_SESSIONS_DIR = get_vscode_storage_path("workspaceStorage")
+CURSOR_SESSIONS_DIR = get_cursor_storage_path("workspaceStorage")
+GROQ_SESSIONS_DIR = os.path.expanduser("~/.groq/sessions")
+CLINE_SESSIONS_DIR = get_vscode_storage_path(os.path.join("globalStorage", "saoudrizwan.claude-dev", "tasks"))
+ROOCODE_SESSIONS_DIR = get_vscode_storage_path(os.path.join("globalStorage", "roodev.roo-cline", "tasks"))
 
 def get_db_connection():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -316,6 +346,264 @@ def scan_gemini_file(file_path):
                 pass
     return events
 
+def scan_copilot_file(file_path):
+    events = []
+    parts = file_path.replace("\\", "/").split("/")
+    workspace_hash = "unknown"
+    for i, part in enumerate(parts):
+        if part == "workspaceStorage" and i + 1 < len(parts):
+            workspace_hash = parts[i+1]
+            break
+            
+    project_name = "VS Code Workspace"
+    workspace_dir = ""
+    if workspace_hash != "unknown":
+        idx = parts.index(workspace_hash)
+        workspace_dir = "/".join(parts[:idx+1])
+        workspace_json_path = os.path.join(workspace_dir, "workspace.json")
+        if os.path.exists(workspace_json_path):
+            try:
+                with open(workspace_json_path, 'r', encoding='utf-8') as f:
+                    w_data = json.load(f)
+                    folder_uri = w_data.get("folder")
+                    if folder_uri:
+                        project_name = get_project_name(folder_uri)
+            except:
+                pass
+                
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            data = json.load(f)
+            v = data.get("v", {})
+            session_id = v.get("sessionId") or os.path.splitext(os.path.basename(file_path))[0]
+            requests = v.get("requests", [])
+            for req in requests:
+                req_msg = req.get("message")
+                req_text = ""
+                if isinstance(req_msg, dict):
+                    req_text = req_msg.get("text", "")
+                elif isinstance(req_msg, str):
+                    req_text = req_msg
+                    
+                resp_text = ""
+                response = req.get("response", [])
+                if isinstance(response, list):
+                    for resp_item in response:
+                        if isinstance(resp_item, dict):
+                            resp_text += resp_item.get("value", "") + "\n"
+                        elif isinstance(resp_item, str):
+                            resp_text += resp_item + "\n"
+                elif isinstance(response, dict):
+                    resp_text = response.get("value", "")
+                elif isinstance(response, str):
+                    resp_text = response
+                    
+                ts_ms = req.get("creationDate") or v.get("creationDate") or os.path.getmtime(file_path) * 1000
+                dt = datetime.fromtimestamp(ts_ms / 1000.0, timezone.utc)
+                timestamp = dt.isoformat().replace("+00:00", "Z")
+                
+                input_tok = int(len(req_text) / 3.5) if req_text else 0
+                output_tok = int(len(resp_text) / 3.5) if resp_text else 0
+                
+                model = req.get("model") or "copilot-default"
+                
+                events.append((
+                    "copilot",
+                    file_path,
+                    timestamp,
+                    session_id,
+                    workspace_dir,
+                    project_name,
+                    model,
+                    input_tok,
+                    0,
+                    output_tok,
+                    0,
+                    input_tok + output_tok
+                ))
+    except Exception:
+        pass
+        
+    return events
+
+def scan_cursor_db(db_path):
+    import sqlite3
+    import tempfile
+    import shutil
+    
+    events = []
+    workspace_dir = os.path.dirname(db_path)
+    session_id = os.path.basename(workspace_dir)
+    
+    project_name = "Cursor Workspace"
+    workspace_json_path = os.path.join(workspace_dir, "workspace.json")
+    if os.path.exists(workspace_json_path):
+        try:
+            with open(workspace_json_path, 'r', encoding='utf-8') as f:
+                w_data = json.load(f)
+                folder_uri = w_data.get("folder")
+                if folder_uri:
+                    project_name = get_project_name(folder_uri)
+        except:
+            pass
+            
+    temp_dir = tempfile.gettempdir()
+    temp_db_path = os.path.join(temp_dir, f"cursor_state_{session_id}.db")
+    try:
+        shutil.copy2(db_path, temp_db_path)
+        conn = sqlite3.connect(temp_db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM ItemTable WHERE key = 'workbench.panel.aichat.view.aichat.chatdata'")
+        row = cursor.fetchone()
+        conn.close()
+        try:
+            os.remove(temp_db_path)
+        except:
+            pass
+            
+        if row and row[0]:
+            chat_data = json.loads(row[0])
+            tabs = chat_data.get("tabs", [])
+            for tab in tabs:
+                tab_id = tab.get("id") or session_id
+                ts_ms = tab.get("timestamp") or os.path.getmtime(db_path) * 1000
+                dt = datetime.fromtimestamp(ts_ms / 1000.0, timezone.utc)
+                timestamp = dt.isoformat().replace("+00:00", "Z")
+                
+                bubbles = tab.get("bubbles", [])
+                for bubble in bubbles:
+                    b_type = bubble.get("type")
+                    text = bubble.get("text", "")
+                    if not text:
+                        continue
+                        
+                    tokens = int(len(text) / 3.5)
+                    input_tok = tokens if b_type == "user" else 0
+                    output_tok = tokens if b_type in ("ai", "assistant") else 0
+                    
+                    model = tab.get("model") or "cursor-default"
+                    
+                    events.append((
+                        "cursor",
+                        db_path,
+                        timestamp,
+                        tab_id,
+                        workspace_dir,
+                        project_name,
+                        model,
+                        input_tok,
+                        0,
+                        output_tok,
+                        0,
+                        input_tok + output_tok
+                    ))
+    except Exception:
+        pass
+        
+    return events
+
+def scan_groq_file(file_path):
+    events = []
+    session_id, _ = os.path.splitext(os.path.basename(file_path))
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    timestamp = data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+                    model = data.get("model") or "llama3-70b-8192"
+                    
+                    input_tok = data.get("input_tokens") or data.get("prompt_tokens") or 0
+                    output_tok = data.get("output_tokens") or data.get("completion_tokens") or 0
+                    cached_tok = data.get("cached_tokens") or data.get("prompt_tokens_details", {}).get("cached_tokens", 0) or 0
+                    
+                    prompt = data.get("prompt") or data.get("input") or ""
+                    response = data.get("response") or data.get("output") or ""
+                    if not input_tok and prompt:
+                        input_tok = int(len(prompt) / 3.5)
+                    if not output_tok and response:
+                        output_tok = int(len(response) / 3.5)
+                        
+                    total_tok = data.get("total_tokens") or (input_tok + output_tok)
+                    
+                    events.append((
+                        "groq",
+                        file_path,
+                        timestamp,
+                        session_id,
+                        "",
+                        "Groq Workspace",
+                        model,
+                        input_tok,
+                        cached_tok,
+                        output_tok,
+                        0,
+                        total_tok
+                    ))
+                except:
+                    pass
+    except Exception:
+        pass
+    return events
+
+def scan_cline_file(file_path):
+    events = []
+    parts = file_path.replace("\\", "/").split("/")
+    task_id = "unknown"
+    agent_type = "cline"
+    
+    for i, part in enumerate(parts):
+        if part == "tasks" and i > 0:
+            task_id = parts[i+1] if i + 1 < len(parts) else "unknown"
+        if "roo-cline" in part.lower():
+            agent_type = "roocode"
+            
+    project_name = "Cline Task" if agent_type == "cline" else "Roo Code Task"
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            messages = json.load(f)
+            if not isinstance(messages, list):
+                return []
+                
+            for msg in messages:
+                ts_ms = msg.get("ts") or os.path.getmtime(file_path) * 1000
+                dt = datetime.fromtimestamp(ts_ms / 1000.0, timezone.utc)
+                timestamp = dt.isoformat().replace("+00:00", "Z")
+                
+                text = msg.get("text") or ""
+                if not text and isinstance(msg.get("value"), str):
+                    text = msg.get("value")
+                    
+                if not text:
+                    continue
+                    
+                tokens = int(len(text) / 3.5)
+                m_type = msg.get("type")
+                input_tok = tokens if m_type == "ask" else 0
+                output_tok = tokens if m_type == "say" else 0
+                
+                events.append((
+                    agent_type,
+                    file_path,
+                    timestamp,
+                    task_id,
+                    "",
+                    project_name,
+                    "claude-3-5-sonnet",
+                    input_tok,
+                    0,
+                    output_tok,
+                    0,
+                    input_tok + output_tok
+                ))
+    except Exception:
+        pass
+        
+    return events
+
 # --- SCAN ORCHESTRATOR ---
 def run_scan(verbose=False):
     init_db()
@@ -326,8 +614,8 @@ def run_scan(verbose=False):
     cursor.execute("SELECT file_path, last_modified, file_size FROM scanned_files")
     scanned_state = {row["file_path"]: (row["last_modified"], row["file_size"]) for row in cursor.fetchall()}
     
-    codex_files = glob.glob(os.path.join(CODEX_SESSIONS_DIR, "**/*.jsonl"), recursive=True)
-    claude_files = glob.glob(os.path.join(CLAUDE_SESSIONS_DIR, "**/*.jsonl"), recursive=True)
+    codex_files = glob.glob(os.path.join(CODEX_SESSIONS_DIR, "**/*.jsonl"), recursive=True) if os.path.exists(CODEX_SESSIONS_DIR) else []
+    claude_files = glob.glob(os.path.join(CLAUDE_SESSIONS_DIR, "**/*.jsonl"), recursive=True) if os.path.exists(CLAUDE_SESSIONS_DIR) else []
     
     gemini_files = []
     if os.path.exists(GEMINI_SESSIONS_DIR):
@@ -336,6 +624,12 @@ def run_scan(verbose=False):
                 if f == "transcript.jsonl":
                     gemini_files.append(os.path.join(root, f))
                     
+    copilot_files = glob.glob(os.path.join(COPILOT_SESSIONS_DIR, "**/chatSessions/*.jsonl"), recursive=True) if os.path.exists(COPILOT_SESSIONS_DIR) else []
+    cursor_files = glob.glob(os.path.join(CURSOR_SESSIONS_DIR, "**/state.vscdb"), recursive=True) if os.path.exists(CURSOR_SESSIONS_DIR) else []
+    groq_files = glob.glob(os.path.join(GROQ_SESSIONS_DIR, "**/*.jsonl"), recursive=True) if os.path.exists(GROQ_SESSIONS_DIR) else []
+    cline_files = glob.glob(os.path.join(CLINE_SESSIONS_DIR, "**/ui_messages.json"), recursive=True) if os.path.exists(CLINE_SESSIONS_DIR) else []
+    roocode_files = glob.glob(os.path.join(ROOCODE_SESSIONS_DIR, "**/ui_messages.json"), recursive=True) if os.path.exists(ROOCODE_SESSIONS_DIR) else []
+        
     all_scan_targets = []
     for f in codex_files:
         if "auth.json" not in f:
@@ -344,6 +638,16 @@ def run_scan(verbose=False):
         all_scan_targets.append((f, "claude"))
     for f in gemini_files:
         all_scan_targets.append((f, "gemini"))
+    for f in copilot_files:
+        all_scan_targets.append((f, "copilot"))
+    for f in cursor_files:
+        all_scan_targets.append((f, "cursor"))
+    for f in groq_files:
+        all_scan_targets.append((f, "groq"))
+    for f in cline_files:
+        all_scan_targets.append((f, "cline"))
+    for f in roocode_files:
+        all_scan_targets.append((f, "roocode"))
         
     new_files_count = 0
     updated_files_count = 0
@@ -377,6 +681,14 @@ def run_scan(verbose=False):
             events = scan_claude_file(file_path)
         elif agent_type == "gemini":
             events = scan_gemini_file(file_path)
+        elif agent_type == "copilot":
+            events = scan_copilot_file(file_path)
+        elif agent_type == "cursor":
+            events = scan_cursor_db(file_path)
+        elif agent_type == "groq":
+            events = scan_groq_file(file_path)
+        elif agent_type in ("cline", "roocode"):
+            events = scan_cline_file(file_path)
         else:
             events = []
             

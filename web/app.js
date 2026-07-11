@@ -13,6 +13,11 @@ const BRAND_COLORS = {
     codex: '#10a37f',    // OpenAI Teal
     claude: '#d97706',   // Anthropic Amber/Orange
     gemini: '#8b5cf6',   // Google Gemini Purple/Indigo
+    copilot: '#2ea44f',  // GitHub Green
+    cursor: '#ffffff',   // Cursor White
+    groq: '#f55035',     // Groq Orange
+    cline: '#ff5a00',    // Cline Orange
+    roocode: '#4f46e5',  // Roo Code Indigo
     all: '#3b82f6'       // Tech Blue
 };
 
@@ -60,28 +65,30 @@ function showToast(message, type = 'success') {
 }
 
 // Liquid Tab Selector Logic
+let updateLiquidTabPosition = null;
+
 function initAgentSelector() {
     const tabs = document.querySelectorAll('.agent-tab');
     const liquidBg = document.querySelector('.selector-liquid-bg');
     
-    function updatePosition(activeTab) {
+    updateLiquidTabPosition = function() {
+        const activeTab = document.querySelector('.agent-tab.active');
         if (!activeTab || !liquidBg) return;
         const rect = activeTab.getBoundingClientRect();
         const parentRect = activeTab.parentElement.getBoundingClientRect();
         const left = rect.left - parentRect.left;
         liquidBg.style.transform = `translateX(${left}px)`;
         liquidBg.style.width = `${rect.width}px`;
-    }
+    };
     
     // Set initial position
-    const activeTab = document.querySelector('.agent-tab.active');
-    setTimeout(() => updatePosition(activeTab), 50);
+    setTimeout(updateLiquidTabPosition, 50);
     
     tabs.forEach(tab => {
         tab.addEventListener('click', function() {
             tabs.forEach(t => t.classList.remove('active'));
             this.classList.add('active');
-            updatePosition(this);
+            updateLiquidTabPosition();
             
             // Trigger fetch with new filter
             currentAgent = this.dataset.agent;
@@ -89,10 +96,7 @@ function initAgentSelector() {
         });
     });
     
-    window.addEventListener('resize', () => {
-        const active = document.querySelector('.agent-tab.active');
-        updatePosition(active);
-    });
+    window.addEventListener('resize', updateLiquidTabPosition);
 }
 
 // Date Selector Logic
@@ -285,14 +289,17 @@ function renderTrendChart(data, isMonthly) {
                             const value = context.parsed.y || 0;
                             const index = context.dataIndex;
                             const item = data[index];
-                            if (item && currentAgent === 'all') {
-                                const rawVal = context.datasetIndex === 0 ? item.codex_tokens : (context.datasetIndex === 1 ? item.claude_tokens : item.gemini_tokens);
-                                return `${label}: ${formatNumber(rawVal)}`;
-                            } else if (item) {
-                                const rawVal = context.datasetIndex === 0 ? item.input_tokens : item.output_tokens;
-                                return `${label}: ${formatNumber(rawVal)}`;
-                            }
-                            return `${label}: ${formatNumber(value)}`;
+                              if (item && currentAgent === 'all') {
+                                  const agentsList = ['codex', 'claude', 'gemini', 'copilot', 'cursor', 'groq', 'cline', 'roocode'];
+                                  const activeAgents = agentsList.filter(a => dashboardData && dashboardData.agent_breakdown && dashboardData.agent_breakdown[a] > 0);
+                                  const agent = activeAgents[context.datasetIndex];
+                                  const rawVal = item[`${agent}_tokens`] || 0;
+                                  return `${label}: ${formatNumber(rawVal)}`;
+                              } else if (item) {
+                                 const rawVal = context.datasetIndex === 0 ? item.input_tokens : item.output_tokens;
+                                 return `${label}: ${formatNumber(rawVal)}`;
+                             }
+                             return `${label}: ${formatNumber(value)}`;
                         },
                         footer: function(tooltipItems) {
                             let total = 0;
@@ -310,74 +317,58 @@ function renderTrendChart(data, isMonthly) {
 
         let datasets = [];
         if (currentAgent === 'all') {
-            // Stacked by AI provider with rich brand colors and visual minimum height helper
-            const codexPlotted = [];
-            const claudePlotted = [];
-            const geminiPlotted = [];
+            const agentsList = ['codex', 'claude', 'gemini', 'copilot', 'cursor', 'groq', 'cline', 'roocode'];
+            const activeAgents = agentsList.filter(a => dashboardData && dashboardData.agent_breakdown && dashboardData.agent_breakdown[a] > 0);
+            
+            const agentPlotted = {};
+            activeAgents.forEach(a => { agentPlotted[a] = []; });
             
             for (let i = 0; i < data.length; i++) {
                 const item = data[i];
-                const rCodex = item.codex_tokens || 0;
-                const rClaude = item.claude_tokens || 0;
-                const rGemini = item.gemini_tokens || 0;
-                const total = rCodex + rClaude + rGemini;
+                const rawVals = {};
+                activeAgents.forEach(a => { rawVals[a] = item[`${a}_tokens`] || 0; });
+                const total = Object.values(rawVals).reduce((sum, v) => sum + v, 0);
                 
-                let vCodex = rCodex;
-                let vClaude = rClaude;
-                let vGemini = rGemini;
+                const plottedVals = { ...rawVals };
                 
                 if (total > 0) {
-                    const minPlotted = total * 0.04; // 4% of this specific bar's total height
-                    const maxVal = Math.max(rCodex, rClaude, rGemini);
+                    const minPlotted = total * 0.04;
+                    const maxAgent = Object.keys(rawVals).reduce((a, b) => rawVals[a] > rawVals[b] ? a : b);
                     
-                    if (rClaude > 0 && rClaude < minPlotted) {
-                        vClaude = minPlotted;
-                    }
-                    if (rGemini > 0 && rGemini < minPlotted) {
-                        vGemini = minPlotted;
-                    }
-                    if (rCodex > 0 && rCodex < minPlotted) {
-                        vCodex = minPlotted;
-                    }
-                    
-                    const excess = (vCodex + vClaude + vGemini) - total;
-                    if (excess > 0) {
-                        // Deduct excess from the dominant provider to maintain accurate total height
-                        if (maxVal === rCodex) {
-                            vCodex = Math.max(0, vCodex - excess);
-                        } else if (maxVal === rClaude) {
-                            vClaude = Math.max(0, vClaude - excess);
-                        } else {
-                            vGemini = Math.max(0, vGemini - excess);
+                    activeAgents.forEach(a => {
+                        if (rawVals[a] > 0 && rawVals[a] < minPlotted) {
+                            plottedVals[a] = minPlotted;
                         }
+                    });
+                    
+                    const excess = Object.values(plottedVals).reduce((sum, v) => sum + v, 0) - total;
+                    if (excess > 0) {
+                        plottedVals[maxAgent] = Math.max(0, plottedVals[maxAgent] - excess);
                     }
                 }
                 
-                codexPlotted.push(vCodex);
-                claudePlotted.push(vClaude);
-                geminiPlotted.push(vGemini);
+                activeAgents.forEach(a => {
+                    agentPlotted[a].push(plottedVals[a]);
+                });
             }
             
-            datasets = [
-                {
-                    label: 'OpenAI Codex',
-                    data: codexPlotted,
-                    backgroundColor: BRAND_COLORS.codex,
-                    borderRadius: 4
-                },
-                {
-                    label: 'Anthropic Claude',
-                    data: claudePlotted,
-                    backgroundColor: BRAND_COLORS.claude,
-                    borderRadius: 4
-                },
-                {
-                    label: 'Google Gemini',
-                    data: geminiPlotted,
-                    backgroundColor: BRAND_COLORS.gemini,
-                    borderRadius: 4
-                }
-            ];
+            const displayNames = {
+                codex: 'OpenAI Codex',
+                claude: 'Anthropic Claude',
+                gemini: 'Google Gemini',
+                copilot: 'GitHub Copilot',
+                cursor: 'Cursor IDE',
+                groq: 'Groq',
+                cline: 'Cline',
+                roocode: 'Roo Code'
+            };
+            
+            datasets = activeAgents.map(a => ({
+                label: displayNames[a],
+                data: agentPlotted[a],
+                backgroundColor: BRAND_COLORS[a],
+                borderRadius: 4
+            }));
         } else {
             // Stacked by Input/Output (with minimum height helper)
             const maxTotal = Math.max(...data.map(item => item.total_tokens || 0));
@@ -471,39 +462,30 @@ function renderHourlyChart(data) {
         };
         
         if (currentAgent === 'all') {
-            // Render three distinct lines for Codex, Claude, Gemini
-            datasets = [
-                {
-                    label: 'OpenAI Codex',
-                    data: data.map(item => item.codex_tokens || 0),
-                    borderColor: BRAND_COLORS.codex,
-                    borderWidth: 2,
-                    pointBackgroundColor: BRAND_COLORS.codex,
-                    pointRadius: 1,
-                    fill: false,
-                    tension: 0.3
-                },
-                {
-                    label: 'Anthropic Claude',
-                    data: data.map(item => item.claude_tokens || 0),
-                    borderColor: BRAND_COLORS.claude,
-                    borderWidth: 2,
-                    pointBackgroundColor: BRAND_COLORS.claude,
-                    pointRadius: 1,
-                    fill: false,
-                    tension: 0.3
-                },
-                {
-                    label: 'Google Gemini',
-                    data: data.map(item => item.gemini_tokens || 0),
-                    borderColor: BRAND_COLORS.gemini,
-                    borderWidth: 2,
-                    pointBackgroundColor: BRAND_COLORS.gemini,
-                    pointRadius: 1,
-                    fill: false,
-                    tension: 0.3
-                }
-            ];
+            const agentsList = ['codex', 'claude', 'gemini', 'copilot', 'cursor', 'groq', 'cline', 'roocode'];
+            const activeAgents = agentsList.filter(a => dashboardData && dashboardData.agent_breakdown && dashboardData.agent_breakdown[a] > 0);
+            const displayNames = {
+                codex: 'OpenAI Codex',
+                claude: 'Anthropic Claude',
+                gemini: 'Google Gemini',
+                copilot: 'GitHub Copilot',
+                cursor: 'Cursor IDE',
+                groq: 'Groq',
+                cline: 'Cline',
+                roocode: 'Roo Code'
+            };
+            
+            datasets = activeAgents.map(a => ({
+                label: displayNames[a],
+                data: data.map(item => item[`${a}_tokens`] || 0),
+                borderColor: BRAND_COLORS[a],
+                backgroundColor: BRAND_COLORS[a],
+                borderWidth: 2,
+                pointBackgroundColor: BRAND_COLORS[a],
+                pointRadius: 2,
+                fill: false,
+                tension: 0.3
+            }));
         } else {
             // Render single total line for selected agent
             const values = data.map(item => item.total_tokens);
@@ -550,55 +532,65 @@ function renderBreakdownChart(breakdownData) {
             breakdownChartInstance.destroy();
         }
         
-        const total = breakdownData.codex + breakdownData.claude + breakdownData.gemini;
+        const agentsList = ['codex', 'claude', 'gemini', 'copilot', 'cursor', 'groq', 'cline', 'roocode'];
+        const displayNames = {
+            codex: 'OpenAI Codex',
+            claude: 'Anthropic Claude',
+            gemini: 'Google Gemini',
+            copilot: 'GitHub Copilot',
+            cursor: 'Cursor IDE',
+            groq: 'Groq',
+            cline: 'Cline',
+            roocode: 'Roo Code'
+        };
+        
+        const total = agentsList.reduce((sum, a) => sum + (breakdownData[a] || 0), 0);
         if (total === 0) {
             canvas.parentElement.innerHTML = `<div class="loader" style="padding-top: 50px;">No usage logged yet.</div>`;
             return;
         }
         
-        // Calculate visually adjusted values to ensure small slices (like Google Gemini) are visible
-        const rCodex = breakdownData.codex || 0;
-        const rClaude = breakdownData.claude || 0;
-        const rGemini = breakdownData.gemini || 0;
+        const rawVals = {};
+        agentsList.forEach(a => { rawVals[a] = breakdownData[a] || 0; });
         
-        let vCodex = rCodex;
-        let vClaude = rClaude;
-        let vGemini = rGemini;
-        
+        const plottedVals = { ...rawVals };
         if (total > 0) {
             const minShare = total * 0.03; // 3% visual minimum share
-            const maxVal = Math.max(rCodex, rClaude, rGemini);
+            const maxAgent = Object.keys(rawVals).reduce((a, b) => rawVals[a] > rawVals[b] ? a : b);
             
-            if (rClaude > 0 && rClaude < minShare) {
-                vClaude = minShare;
-            }
-            if (rGemini > 0 && rGemini < minShare) {
-                vGemini = minShare;
-            }
-            if (rCodex > 0 && rCodex < minShare) {
-                vCodex = minShare;
-            }
-            
-            const excess = (vCodex + vClaude + vGemini) - total;
-            if (excess > 0) {
-                // Deduct excess from the dominant provider to maintain accurate total height
-                if (maxVal === rCodex) {
-                    vCodex = Math.max(0, vCodex - excess);
-                } else if (maxVal === rClaude) {
-                    vClaude = Math.max(0, vClaude - excess);
-                } else {
-                    vGemini = Math.max(0, vGemini - excess);
+            agentsList.forEach(a => {
+                if (rawVals[a] > 0 && rawVals[a] < minShare) {
+                    plottedVals[a] = minShare;
                 }
+            });
+            
+            const excess = Object.values(plottedVals).reduce((sum, v) => sum + v, 0) - total;
+            if (excess > 0) {
+                plottedVals[maxAgent] = Math.max(0, plottedVals[maxAgent] - excess);
             }
         }
+        
+        const activeLabels = [];
+        const activeData = [];
+        const activeRaw = [];
+        const activeColors = [];
+        
+        agentsList.forEach(a => {
+            if (rawVals[a] > 0) {
+                activeLabels.push(displayNames[a]);
+                activeData.push(plottedVals[a]);
+                activeRaw.push(rawVals[a]);
+                activeColors.push(BRAND_COLORS[a]);
+            }
+        });
 
         breakdownChartInstance = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['OpenAI Codex', 'Anthropic Claude', 'Google Gemini'],
+                labels: activeLabels,
                 datasets: [{
-                    data: [vCodex, vClaude, vGemini],
-                    backgroundColor: [BRAND_COLORS.codex, BRAND_COLORS.claude, BRAND_COLORS.gemini],
+                    data: activeData,
+                    backgroundColor: activeColors,
                     borderWidth: 1,
                     borderColor: 'rgba(255, 255, 255, 0.1)'
                 }]
@@ -625,9 +617,8 @@ function renderBreakdownChart(breakdownData) {
                         borderWidth: 1,
                         callbacks: {
                             label: function(context) {
-                                // Display raw tokens and actual percentage in the tooltip hover
                                 const index = context.dataIndex;
-                                const rawVal = index === 0 ? rCodex : (index === 1 ? rClaude : rGemini);
+                                const rawVal = activeRaw[index];
                                 const pct = ((rawVal / total) * 100).toFixed(2);
                                 return `${context.label}: ${formatTokens(rawVal)} (${pct}%)`;
                             }
@@ -655,6 +646,25 @@ async function fetchStats() {
         
         // Save globally
         dashboardData = data;
+        
+        // Dynamic Tab Visibility
+        const tabsEl = document.querySelectorAll('.agent-tab');
+        tabsEl.forEach(tab => {
+            const agent = tab.dataset.agent;
+            if (agent && agent !== 'all') {
+                const tokenCount = data.agent_breakdown[agent] || 0;
+                if (tokenCount > 0) {
+                    tab.classList.remove('hidden-tab');
+                } else {
+                    tab.classList.add('hidden-tab');
+                }
+            }
+        });
+        
+        // Re-align active sliding liquid indicator after layout shift
+        if (typeof updateLiquidTabPosition === 'function') {
+            setTimeout(updateLiquidTabPosition, 50);
+        }
         
         // 0. Update Calendar Limits and Selection
         const dateInput = document.getElementById('dashboard-date');
@@ -736,15 +746,30 @@ async function fetchStats() {
                 let baseName = proj.project_name;
                 let providerBadge = '';
                 
-                if (proj.project_name.endsWith('(Codex)')) {
-                    baseName = proj.project_name.replace(' (Codex)', '');
-                    providerBadge = `<span class="badge-mini codex"><svg viewBox="0 0 24 24" class="badge-logo-svg"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg> Codex</span>`;
-                } else if (proj.project_name.endsWith('(Claude)')) {
-                    baseName = proj.project_name.replace(' (Claude)', '');
-                    providerBadge = `<span class="badge-mini claude"><svg viewBox="0 0 24 24" class="badge-logo-svg"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg> Claude</span>`;
-                } else if (proj.project_name.endsWith('(Gemini)')) {
-                    baseName = proj.project_name.replace(' (Gemini)', '');
-                    providerBadge = `<span class="badge-mini gemini"><svg viewBox="0 0 24 24" class="badge-logo-svg"><path d="M12 2c0 4.97-4.03 9-9 9 4.97 0 9 4.03 9 9 0-4.97 4.03-9 9-9-4.97 0-9-4.03-9-9zm5 5c0 2.49-2.01 4.5-4.5 4.5 2.49 0 4.5 2.01 4.5 4.5 0-2.49 2.01-4.5 4.5-4.5-2.49 0-4.5-2.01-4.5-4.5z"/></svg> Gemini</span>`;
+                const endings = {
+                    '(Codex)': { class: 'codex', label: 'Codex', svg: `<path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg> Codex</span>` },
+                    '(Claude)': { class: 'claude', label: 'Claude', svg: `<path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/>` },
+                    '(Gemini)': { class: 'gemini', label: 'Gemini', svg: `<path d="M12 2c0 4.97-4.03 9-9 9 4.97 0 9 4.03 9 9 0-4.97 4.03-9 9-9-4.97 0-9-4.03-9-9zm5 5c0 2.49-2.01 4.5-4.5 4.5 2.49 0 4.5 2.01 4.5 4.5 0-2.49 2.01-4.5 4.5-4.5-2.49 0-4.5-2.01-4.5-4.5z"/>` },
+                    '(Copilot)': { class: 'copilot', label: 'Copilot', svg: `<path d="M12 2a10 10 0 0 0-7.38 16.74c.48.45.69 1.15.53 1.78l-.34 1.34a.5.5 0 0 0 .61.61l1.34-.34a2 2 0 0 1 1.78.53A10 10 0 1 0 12 2zm1 13h-2v-2h2zm0-4h-2V7h2z"/>` },
+                    '(Cursor)': { class: 'cursor', label: 'Cursor', svg: `<path d="M13.64 21.97c-.38.03-.64-.26-.64-.64V12.7L21.32 16c.38.16.48.51.26.83l-6.9 4.97c-.32.22-.7.22-1.04.17zM10.87 2v10.7L2.55 9.38c-.38-.16-.48-.51-.26-.83l6.9-4.97c.32-.22.7-.22 1.04-.17a.64.64 0 0 1 .64.59z"/>` },
+                    '(Groq)': { class: 'groq', label: 'Groq', svg: `<path d="M13 2L3 14h9l-1 8 10-12h-9z"/>` },
+                    '(Cline)': { class: 'cline', label: 'Cline', svg: `<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>`, stroke: true },
+                    '(Roo Code)': { class: 'roocode', label: 'Roo Code', svg: `<path d="M16 18l6-6-6-6M8 6l-6 6 6 6M12 4l-4 16"/>`, stroke: true }
+                };
+                
+                let foundEnding = null;
+                for (const suffix of Object.keys(endings)) {
+                    if (proj.project_name.endsWith(suffix)) {
+                        foundEnding = suffix;
+                        break;
+                    }
+                }
+                
+                if (foundEnding) {
+                    baseName = proj.project_name.replace(` ${foundEnding}`, '');
+                    const cfg = endings[foundEnding];
+                    const fillStrokeAttr = cfg.stroke ? `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"` : `fill="currentColor"`;
+                    providerBadge = `<span class="badge-mini ${cfg.class}"><svg viewBox="0 0 24 24" class="badge-logo-svg" ${fillStrokeAttr}>${cfg.svg}</svg> ${cfg.label}</span>`;
                 }
                 
                 return `
