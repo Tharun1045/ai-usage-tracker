@@ -1,5 +1,7 @@
 # AIDash — AI Usage Dashboard
 
+> 🌐 **100% Internet-Free** &nbsp;|&nbsp; 🔒 **Privacy Safe** &nbsp;|&nbsp; ⚡ **Works Offline**
+
 A local, privacy-safe token usage and cost tracker for developer AI tools. It automatically detects and visualizes your usage from the AI coding tools installed on your machine — **only showing the ones you've actually used**.
 
 > **🧠 Smart Detection**: AIDash has built-in compatibility for 8 AI agents, but it will only display the tools you have actively used. If you only use Cursor and GitHub Copilot, you'll only see those two — nothing else clutters the view.
@@ -23,11 +25,13 @@ AIDash has built-in support for the following tools. It will automatically detec
 
 ---
 
-## 🔒 Privacy Guarantee
+## 🔒 Privacy & Offline Guarantee
 
-- **Zero API calls / network uploads**: All operations occur entirely on your local machine.
+- **100% Internet-Free**: AIDash works entirely offline. All fonts, charts, and icons are bundled inside the app — no CDN calls, no external requests, ever.
+- **Zero API calls / network uploads**: All operations occur entirely on your local machine. Your logs never leave your device.
 - **No credentials accessed**: The application never touches or reads any API keys or auth tokens.
 - **Local SQLite DB**: Aggregated metrics are stored in a private, local SQLite database (`~/.codex/codex_usage.db`).
+- **localhost only**: The dashboard runs on `http://localhost:8080` — only accessible from your own machine. Nobody on the internet or your local WiFi can open it.
 
 ---
 
