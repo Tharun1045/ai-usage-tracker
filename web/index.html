@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified AI Usage Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-logo">
+                <div class="logo-circle"></div>
+                <h1>Unified AI <span>Usage Dashboard</span></h1>
+            </div>
+            <div class="header-actions">
+                <span class="privacy-badge"><i data-lucide="shield-check" class="badge-icon"></i> Privacy Protected</span>
+                
+                <!-- Date Range Calendar Select -->
+                <div class="date-selector-wrapper">
+                    <label for="dashboard-date" class="date-label"><i data-lucide="calendar-range" class="date-icon"></i> Date:</label>
+                    <input type="date" id="dashboard-date" class="dashboard-date-input">
+                    <button id="reset-date-btn" class="date-reset-btn" title="Reset to Today">✕</button>
+                </div>
+
+                <button id="scan-btn" class="btn btn-primary">
+                    <i data-lucide="refresh-cw" class="btn-icon"></i> Scan Logs
+                </button>
+            </div>
+        </header>
+
+        <!-- Agent Selector (Liquid Sliding Tabs with HD SVGs) -->
+        <section class="agent-selector-container glass">
+            <div class="agent-tabs">
+                <div class="selector-liquid-bg"></div>
+                <button class="agent-tab active" data-agent="all">
+                    <svg class="tab-logo all-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    All AIs
+                </button>
+                <button class="agent-tab" data-agent="codex">
+                    <svg class="tab-logo openai-logo" viewBox="0 0 24 24" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>
+                    OpenAI Codex
+                </button>
+                <button class="agent-tab" data-agent="claude">
+                    <svg class="tab-logo anthropic-logo" viewBox="0 0 24 24" fill="currentColor"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>
+                    Anthropic Claude
+                </button>
+                <button class="agent-tab" data-agent="gemini">
+                    <svg class="tab-logo gemini-logo" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c0 4.97-4.03 9-9 9 4.97 0 9 4.03 9 9 0-4.97 4.03-9 9-9-4.97 0-9-4.03-9-9zm5 5c0 2.49-2.01 4.5-4.5 4.5 2.49 0 4.5 2.01 4.5 4.5 0-2.49 2.01-4.5 4.5-4.5-2.49 0-4.5-2.01-4.5-4.5z"/></svg>
+                    Google Gemini
+                </button>
+            </div>
+        </section>
+
+        <!-- Dynamic Header Showing Target Date -->
+        <div class="viewing-date-indicator glass">
+            <p>Showing statistics for: <strong id="selected-date-label">-</strong></p>
+        </div>
+
+        <!-- Summary Cards Grid -->
+        <section class="metrics-grid">
+            <div class="metric-card glass card-primary-highlight">
+                <div class="card-header">
+                    <h3 id="focus-date-title">Selected Day</h3>
+                    <span class="card-icon"><i data-lucide="target" style="color: #3b82f6;"></i></span>
+                </div>
+                <div class="card-body">
+                    <h2 id="today-total-tokens">-</h2>
+                    <p class="cost-estimate">Cost: <span id="today-cost">$0.00</span> <span id="today-pct" class="pct-badge"></span></p>
+                </div>
+                <div class="card-footer">
+                    <span>In: <strong id="today-in-tokens">-</strong></span>
+                    <span>Out: <strong id="today-out-tokens">-</strong></span>
+                </div>
+            </div>
+
+            <div class="metric-card glass">
+                <div class="card-header">
+                    <h3>All Time (Cumulative)</h3>
+                    <span class="card-icon"><i data-lucide="database" style="color: #10b981;"></i></span>
+                </div>
+                <div class="card-body">
+                    <h2 id="summary-total-tokens">-</h2>
+                    <p class="cost-estimate">Cost: <span id="summary-total-cost">$0.00</span></p>
+                </div>
+                <div class="card-footer">
+                    <span>In: <strong id="summary-in-tokens">-</strong></span>
+                    <span>Out: <strong id="summary-out-tokens">-</strong></span>
+                </div>
+            </div>
+
+            <div class="metric-card glass highlight-5h">
+                <div class="card-header">
+                    <h3>Last 5 Hours</h3>
+                    <span class="card-icon"><i data-lucide="zap" style="color: #eab308;"></i></span>
+                </div>
+                <div class="card-body">
+                    <h2 id="5h-total-tokens">-</h2>
+                    <p class="cost-estimate">Cost: <span id="5h-cost">$0.00</span> <span id="5h-pct" class="pct-badge"></span></p>
+                </div>
+                <div class="card-footer">
+                    <span>In: <strong id="5h-in-tokens">-</strong></span>
+                    <span>Out: <strong id="5h-out-tokens">-</strong></span>
+                </div>
+            </div>
+
+            <div class="metric-card glass">
+                <div class="card-header">
+                    <h3>Last 7 Days</h3>
+                    <span class="card-icon"><i data-lucide="calendar" style="color: #ec4899;"></i></span>
+                </div>
+                <div class="card-body">
+                    <h2 id="7d-total-tokens">-</h2>
+                    <p class="cost-estimate">Cost: <span id="7d-cost">$0.00</span> <span id="7d-pct" class="pct-badge"></span></p>
+                </div>
+                <div class="card-footer">
+                    <span>In: <strong id="7d-in-tokens">-</strong></span>
+                    <span>Out: <strong id="7d-out-tokens">-</strong></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="chart-container glass">
+                <div class="chart-header">
+                    <h3 id="trend-chart-title">Consumption Trends</h3>
+                    <div class="trend-toggles">
+                        <button class="trend-toggle active" data-trend="7d">7D</button>
+                        <button class="trend-toggle" data-trend="30d">30D</button>
+                        <button class="trend-toggle" data-trend="3m">3M</button>
+                        <button class="trend-toggle" data-trend="6m">6M</button>
+                        <button class="trend-toggle" data-trend="1y">1Y</button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="daily-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container glass">
+                <div class="chart-header">
+                    <h3>Hourly Activity</h3>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="hourly-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Details Grid (Projects, AI Breakdown, Models) -->
+        <section class="details-grid">
+            <!-- Projects -->
+            <div class="detail-panel glass project-panel">
+                <div class="panel-header">
+                    <h3>Top Projects</h3>
+                </div>
+                <div class="panel-content">
+                    <div id="projects-list" class="rankings-list">
+                        <div class="loader">Loading projects...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Models -->
+            <div class="detail-panel glass model-panel">
+                <div class="panel-header">
+                    <h3>Usage by Model</h3>
+                </div>
+                <div class="panel-content">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Tokens</th>
+                                <th>Cached</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="models-list">
+                            <tr>
+                                <td colspan="4" class="table-loader">Loading models...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- AI Provider Breakdown (Only visible on All AIs view) -->
+            <div id="breakdown-panel" class="detail-panel glass ai-breakdown-panel">
+                <div class="panel-header">
+                    <h3>AI Provider Breakdown</h3>
+                </div>
+                <div class="panel-content flex-center">
+                    <div class="doughnut-wrapper">
+                        <canvas id="ai-breakdown-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sessions -->
+        <section class="sessions-section glass">
+            <div class="panel-header">
+                <h3>Chat Sessions</h3>
+            </div>
+            <div class="panel-content overflow-x">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Associated Project</th>
+                            <th>Total Tokens</th>
+                            <th>Reasoning</th>
+                            <th>Last Active</th>
+                            <th>Est. Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessions-list">
+                        <tr>
+                            <td colspan="6" class="table-loader">Loading sessions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <p>Unified AI Usage Dashboard • Safe & Private • Reads local logs only</p>
+        </footer>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,411 @@
+import os
+import json
+import glob
+import sqlite3
+from datetime import datetime
+
+DB_PATH = os.path.expanduser("~/.codex/codex_usage.db")
+CODEX_SESSIONS_DIR = os.path.expanduser("~/.codex/sessions")
+CLAUDE_SESSIONS_DIR = os.path.expanduser("~/.claude/projects")
+GEMINI_SESSIONS_DIR = os.path.expanduser("~/.gemini/antigravity/brain")
+
+def get_db_connection():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if we need to migrate schema (add agent_type column)
+    cursor.execute("PRAGMA table_info(token_events)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if columns and "agent_type" not in columns:
+        print("Schema out of date. Recreating tables...")
+        cursor.execute("DROP TABLE IF EXISTS token_events")
+        cursor.execute("DROP TABLE IF EXISTS scanned_files")
+        
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS scanned_files (
+        file_path TEXT PRIMARY KEY,
+        last_modified REAL,
+        file_size INTEGER
+    )
+    """)
+    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS token_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_type TEXT,
+        file_path TEXT,
+        timestamp TEXT,
+        session_id TEXT,
+        project_path TEXT,
+        project_name TEXT,
+        model TEXT,
+        input_tokens INTEGER,
+        cached_input_tokens INTEGER,
+        output_tokens INTEGER,
+        reasoning_tokens INTEGER,
+        total_tokens INTEGER
+    )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+def parse_session_id_from_filename(filename):
+    base = os.path.basename(filename)
+    name, _ = os.path.splitext(base)
+    parts = name.split("-")
+    if len(parts) >= 6:
+        uuid_parts = parts[-5:]
+        if len(uuid_parts[0]) == 8 and len(uuid_parts[1]) == 4 and len(uuid_parts[2]) == 4 and len(uuid_parts[3]) == 4 and len(uuid_parts[4]) == 12:
+            return "-".join(uuid_parts)
+    return name
+
+def clean_path(p):
+    if not p:
+        return ""
+    # Strip quotes, backslashes and surrounding whitespace
+    return p.strip().strip('"').strip("'").strip()
+
+def get_project_name(cwd):
+    if not cwd:
+        return "Unknown Project"
+    cwd = clean_path(cwd)
+    
+    # Normalize slashes (handling potential double backslashes)
+    normalized = cwd.replace("\\\\", "/").replace("\\", "/").strip("/")
+    if not normalized:
+        return "Unknown Project"
+        
+    parts = [p for p in normalized.split("/") if p]
+    
+    # Strip file extensions if it looks like a file
+    if parts:
+        last_part = parts[-1]
+        if "." in last_part and len(last_part.split(".")[-1]) <= 4:
+            parts.pop()
+        
+    if not parts:
+        return "Unknown Project"
+        
+    # Try to find folder directly under common personal project directories
+    project_idx = -1
+    for i, part in enumerate(parts):
+        if part in ["Tharun_personal_projects", "Documents", "projects", "scratch"]:
+            if i + 1 < len(parts):
+                project_idx = i + 1
+                break
+                
+    if project_idx != -1:
+        proj = parts[project_idx]
+        if proj == "gravity-games":
+            return "Games"
+        return proj
+        
+    # Fallback to last directory name, skipping common subdirectories
+    ignored_dirs = {"src", "web", "scripts", "builtin", "systems", "components", "services", "assets", "public", "dist", "build"}
+    for part in reversed(parts):
+        if part.lower() not in ignored_dirs:
+            if part.lower() == "gravity-games":
+                return "Games"
+            return part
+            
+    return parts[-1]
+
+# --- CODE SCANNER ---
+def scan_codex_file(file_path):
+    fallback_session_id = parse_session_id_from_filename(file_path)
+    
+    session_id = fallback_session_id
+    session_cwd = None
+    current_cwd = None
+    current_model = "unknown"
+    
+    events = []
+    
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        for line_num, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+                event_type = data.get("type")
+                payload = data.get("payload")
+                timestamp = data.get("timestamp")
+                
+                if not isinstance(payload, dict):
+                    continue
+                
+                if event_type == "session_meta":
+                    session_id = payload.get("session_id") or payload.get("id") or session_id
+                    session_cwd = payload.get("cwd")
+                    if not current_cwd:
+                        current_cwd = session_cwd
+                    if "model" in payload:
+                        current_model = payload.get("model")
+                
+                elif event_type == "turn_context":
+                    if "cwd" in payload:
+                        current_cwd = payload.get("cwd")
+                    if "model" in payload:
+                        current_model = payload.get("model")
+                
+                elif event_type == "event_msg" and payload.get("type") == "token_count":
+                    info = payload.get("info")
+                    if not isinstance(info, dict):
+                        continue
+                    
+                    last_usage = info.get("last_token_usage")
+                    if not isinstance(last_usage, dict):
+                        continue
+                    
+                    reasoning = last_usage.get("reasoning_output_tokens", 0)
+                    if not reasoning:
+                        reasoning = last_usage.get("reasoning_tokens", 0)
+                        
+                    input_tok = last_usage.get("input_tokens", 0)
+                    cached_tok = last_usage.get("cached_input_tokens", 0)
+                    output_tok = last_usage.get("output_tokens", 0)
+                    total_tok = last_usage.get("total_tokens", 0)
+                    
+                    if not total_tok:
+                        total_tok = input_tok + output_tok
+                    
+                    cwd = current_cwd or session_cwd
+                    proj_name = get_project_name(cwd)
+                    
+                    events.append((
+                        "codex",
+                        file_path,
+                        timestamp,
+                        session_id,
+                        clean_path(cwd),
+                        proj_name,
+                        current_model,
+                        input_tok,
+                        cached_tok,
+                        output_tok,
+                        reasoning,
+                        total_tok
+                    ))
+            except Exception:
+                pass
+    return events
+
+# --- CLAUDE SCANNER ---
+def scan_claude_file(file_path):
+    session_id, _ = os.path.splitext(os.path.basename(file_path))
+    
+    events = []
+    
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        for line_num, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+                timestamp = data.get("timestamp")
+                cwd = data.get("cwd")
+                sess_id = data.get("sessionId") or session_id
+                
+                message = data.get("message")
+                if not isinstance(message, dict):
+                    continue
+                
+                usage = message.get("usage")
+                if not isinstance(usage, dict):
+                    continue
+                
+                input_tok = usage.get("input_tokens", 0)
+                output_tok = usage.get("output_tokens", 0)
+                cached_tok = usage.get("cache_read_input_tokens", 0)
+                
+                total_tok = input_tok + output_tok
+                model = message.get("model", "claude-3-5-sonnet")
+                proj_name = get_project_name(cwd)
+                
+                events.append((
+                    "claude",
+                    file_path,
+                    timestamp,
+                    sess_id,
+                    clean_path(cwd),
+                    proj_name,
+                    model,
+                    input_tok,
+                    cached_tok,
+                    output_tok,
+                    0,
+                    total_tok
+                ))
+            except Exception:
+                pass
+    return events
+
+# --- GEMINI / ANTIGRAVITY SCANNER ---
+def scan_gemini_file(file_path):
+    parent_dirs = file_path.replace("\\", "/").split("/")
+    session_id = "unknown"
+    for i, p in enumerate(parent_dirs):
+        if p == ".system_generated" and i > 0:
+            session_id = parent_dirs[i-1]
+            break
+            
+    events = []
+    current_cwd = r"C:\Users\tharu\.gemini\antigravity\scratch"
+    current_model = "gemini-3.5-pro"
+    
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        for line_num, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+                event_type = data.get("type")
+                timestamp = data.get("created_at") or data.get("timestamp")
+                content = data.get("content")
+                
+                tool_calls = data.get("tool_calls")
+                if isinstance(tool_calls, list):
+                    for call in tool_calls:
+                        args = call.get("args")
+                        if isinstance(args, dict):
+                            # Search for path inputs across all possible tool arguments
+                            cwd = args.get("Cwd") or args.get("DirectoryPath") or args.get("SearchPath") or args.get("TargetFile") or args.get("AbsolutePath")
+                            if cwd:
+                                current_cwd = clean_path(cwd)
+                
+                if event_type == "USER_INPUT" and content:
+                    input_tok = int(len(content) / 3.5)
+                    events.append((
+                        "gemini",
+                        file_path,
+                        timestamp,
+                        session_id,
+                        current_cwd,
+                        get_project_name(current_cwd),
+                        current_model,
+                        input_tok,
+                        0,
+                        0,
+                        0,
+                        input_tok
+                    ))
+                elif event_type == "PLANNER_RESPONSE" and content:
+                    output_tok = int(len(content) / 3.5)
+                    events.append((
+                        "gemini",
+                        file_path,
+                        timestamp,
+                        session_id,
+                        current_cwd,
+                        get_project_name(current_cwd),
+                        current_model,
+                        0,
+                        0,
+                        output_tok,
+                        0,
+                        output_tok
+                    ))
+            except Exception:
+                pass
+    return events
+
+# --- SCAN ORCHESTRATOR ---
+def run_scan(verbose=False):
+    init_db()
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT file_path, last_modified, file_size FROM scanned_files")
+    scanned_state = {row["file_path"]: (row["last_modified"], row["file_size"]) for row in cursor.fetchall()}
+    
+    codex_files = glob.glob(os.path.join(CODEX_SESSIONS_DIR, "**/*.jsonl"), recursive=True)
+    claude_files = glob.glob(os.path.join(CLAUDE_SESSIONS_DIR, "**/*.jsonl"), recursive=True)
+    
+    gemini_files = []
+    if os.path.exists(GEMINI_SESSIONS_DIR):
+        for root, dirs, files in os.walk(os.path.normpath(GEMINI_SESSIONS_DIR)):
+            for f in files:
+                if f == "transcript.jsonl":
+                    gemini_files.append(os.path.join(root, f))
+                    
+    all_scan_targets = []
+    for f in codex_files:
+        if "auth.json" not in f:
+            all_scan_targets.append((f, "codex"))
+    for f in claude_files:
+        all_scan_targets.append((f, "claude"))
+    for f in gemini_files:
+        all_scan_targets.append((f, "gemini"))
+        
+    new_files_count = 0
+    updated_files_count = 0
+    skipped_files_count = 0
+    total_events_added = 0
+    
+    for file_path, agent_type in all_scan_targets:
+        try:
+            mtime = os.path.getmtime(file_path)
+            size = os.path.getsize(file_path)
+        except OSError:
+            continue
+            
+        if file_path in scanned_state:
+            old_mtime, old_size = scanned_state[file_path]
+            if old_mtime == mtime and old_size == size:
+                skipped_files_count += 1
+                continue
+            else:
+                updated_files_count += 1
+                cursor.execute("DELETE FROM token_events WHERE file_path = ?", (file_path,))
+        else:
+            new_files_count += 1
+            
+        if verbose:
+            print(f"Scanning [{agent_type}]: {file_path}")
+            
+        if agent_type == "codex":
+            events = scan_codex_file(file_path)
+        elif agent_type == "claude":
+            events = scan_claude_file(file_path)
+        elif agent_type == "gemini":
+            events = scan_gemini_file(file_path)
+        else:
+            events = []
+            
+        if events:
+            cursor.executemany("""
+            INSERT INTO token_events (
+                agent_type, file_path, timestamp, session_id, project_path, project_name,
+                model, input_tokens, cached_input_tokens, output_tokens, reasoning_tokens, total_tokens
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, events)
+            total_events_added += len(events)
+            
+        cursor.execute("""
+        INSERT OR REPLACE INTO scanned_files (file_path, last_modified, file_size)
+        VALUES (?, ?, ?)
+        """, (file_path, mtime, size))
+        
+        conn.commit()
+        
+    conn.close()
+    
+    return {
+        "new": new_files_count,
+        "updated": updated_files_count,
+        "skipped": skipped_files_count,
+        "events_added": total_events_added
+    }
+
+if __name__ == "__main__":
+    print("Running Unified Scan...")
+    stats = run_scan(verbose=True)
+    print(f"Scan complete: {stats}")

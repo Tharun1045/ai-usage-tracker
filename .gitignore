@@ -1,0 +1,5 @@
+__pycache__/
+*.db
+*.log
+.system_generated/
+test_scanner_debug.py
