@@ -1,70 +1,98 @@
 # Unified AI Usage Tracker & Dashboard
 
-A local, privacy-safe token usage and cost tracker for developer AI tools. It aggregates and visualizes consumption from **GitHub Copilot**, **Cursor**, **Groq**, **Cline**, **Roo Code**, **Google Gemini**, **Anthropic Claude**, and **OpenAI Codex** inside a modern, glassmorphic dark-mode web interface or directly in your terminal.
+A local, privacy-safe token usage and cost tracker for developer AI tools. It automatically detects and visualizes your usage from the AI coding tools installed on your machine — **only showing the ones you've actually used**.
+
+> **🧠 Smart Detection**: The dashboard has built-in compatibility for 8 AI agents, but it will only display the tools you have actively used. If you only use Cursor and GitHub Copilot, you'll only see those two — nothing else clutters the view.
+
+---
+
+## 🤖 Compatible AI Agents
+
+The tracker has built-in support for the following tools. It will automatically detect and show **only the ones present on your machine**:
+
+| Agent | Provider |
+|---|---|
+| OpenAI Codex | OpenAI |
+| Anthropic Claude | Anthropic |
+| Google Gemini | Google |
+| GitHub Copilot | GitHub / Microsoft |
+| Cursor | Anysphere |
+| Groq | Groq |
+| Cline | Cline (VS Code Extension) |
+| Roo Code | Roo Code (VS Code Extension) |
 
 ---
 
 ## 🔒 Privacy Guarantee
 
 - **Zero API calls / network uploads**: All operations occur entirely on your local machine.
-- **Strict credential isolation**: The application never touches or reads any API credentials or auth keys.
+- **No credentials accessed**: The application never touches or reads any API keys or auth tokens.
 - **Local SQLite DB**: Aggregated metrics are stored in a private, local SQLite database (`~/.codex/codex_usage.db`).
 
 ---
 
 ## 🚀 Getting Started
 
-### Method A: One-Click Executable (Zero Setup)
+### ✅ Method A: One-Click Executable (Zero Setup — Recommended)
 
-You don't need Python, Node.js, or Git installed.
+No Python, Node.js, or Git required. Works on any Windows machine.
 
-1. Go to the **Releases** tab in this GitHub repository.
-2. Download the `ai-usage-tracker.exe` file.
-3. Double-click the file to run it. It will:
-   * Scan your machine's logs for active sessions.
-   * Launch the database query server.
-   * Automatically open the dashboard in your default browser at **[http://localhost:8080](http://localhost:8080)**.
+**Steps:**
+1. Go to the **`dist/`** folder in this repository (or the **Releases** tab on GitHub).
+2. Download **`ai-usage-tracker.exe`**.
+3. **Double-click** `ai-usage-tracker.exe`.
+4. It will automatically:
+   - Scan your machine for AI tool logs
+   - Start the local dashboard server
+   - Open your browser at **[http://localhost:8080](http://localhost:8080)**
+5. To stop it, close the terminal/console window that appears.
+
+> ⚠️ **Windows SmartScreen Warning**: The first time you run it, Windows may show a "Windows protected your PC" message. Click **"More info" → "Run anyway"**. This is normal for unsigned executables.
+
+> 💡 **Only your tools appear**: The dashboard detects which AI agents you have logs for and shows only those — tabs, charts, and legends are all filtered dynamically.
 
 ---
 
-### Method B: Developer Setup (Running the Code)
+### 🛠️ Method B: Developer Setup (Run from Source)
 
-#### 1. Requirements
-* Python 3.8+ installed.
+#### Requirements
+- Python 3.8+ installed
 
-#### 2. Run Log Scan
-Scans logs for all active AI agents (VS Code, Cursor workspaces, etc.) and saves token counts to the local database.
+#### Steps
+
+**1. Clone the repository**
+```bash
+git clone https://github.com/your-username/ai-usage-tracker.git
+cd ai-usage-tracker
+```
+
+**2. Scan your local AI logs**
 ```bash
 python cli.py scan
 ```
 
-#### 3. Show Today's Stats
-Print token usage statistics for the current day:
-```bash
-python cli.py today
-```
-
-#### 4. Show Overall Stats
-Displays summary usage of all time, last 5 hours, last 7 days, top projects, and models:
+**3. View stats in terminal**
 ```bash
 python cli.py stats
 ```
 
-#### 5. Start Dashboard Server
-Launch the zero-dependency local webserver and auto-open the dashboard page in your browser:
+**4. Launch the web dashboard**
 ```bash
 python cli.py dashboard
 ```
+This will auto-scan your logs, start the server, and open your browser at **[http://localhost:8080](http://localhost:8080)**.
 
 ---
 
-## 💻 Web Dashboard UI
+## 💻 Web Dashboard Features
 
-Once the dashboard server is running, navigate to:
-👉 **[http://localhost:8080](http://localhost:8080)**
+Once the dashboard is open:
 
-### UI Features:
-- **Instant Scan Trigger**: Click the **🔄 Scan Logs** button in the header to run an incremental log scan directly from the web browser.
-- **Dynamic Filters**: Shows selection tabs *only* for the AI tools you actually have database logs for (hiding unused agents).
-- **Dynamic Chart Legends**: The Daily Consumption stacked bar chart and Hourly Activity (24 Hours) line chart dynamically display legend entries only for active providers.
-- **Top Projects & Models**: View ranked token consumption lists by project, folder path, and model.
+- **Dynamic Agent Tabs**: Only shows tabs for AI tools you've actually used. Unused agents are hidden automatically.
+- **Hourly Activity (24 Hours)**: Line chart of token usage per hour across your active agents.
+- **Daily Consumption Trend**: Stacked bar chart (7D / 30D / 3M / 6M / 1Y) showing usage per agent.
+- **Agent Breakdown (Doughnut Chart)**: Shows your overall share of usage per tool.
+- **Top Projects**: Ranked list of your projects by token consumption.
+- **Top Sessions & Models**: Deep dive into individual chat sessions and model breakdowns.
+- **Instant Scan Button**: Click 🔄 in the header to re-scan logs without restarting the server.
+- **Date Filter**: View stats for a specific day using the date picker.
