@@ -1,14 +1,14 @@
-# Unified AI Usage Tracker & Dashboard
+# AIDash — AI Usage Dashboard
 
 A local, privacy-safe token usage and cost tracker for developer AI tools. It automatically detects and visualizes your usage from the AI coding tools installed on your machine — **only showing the ones you've actually used**.
 
-> **🧠 Smart Detection**: The dashboard has built-in compatibility for 8 AI agents, but it will only display the tools you have actively used. If you only use Cursor and GitHub Copilot, you'll only see those two — nothing else clutters the view.
+> **🧠 Smart Detection**: AIDash has built-in compatibility for 8 AI agents, but it will only display the tools you have actively used. If you only use Cursor and GitHub Copilot, you'll only see those two — nothing else clutters the view.
 
 ---
 
 ## 🤖 Compatible AI Agents
 
-The tracker has built-in support for the following tools. It will automatically detect and show **only the ones present on your machine**:
+AIDash has built-in support for the following tools. It will automatically detect and show **only the ones present on your machine**:
 
 | Agent | Provider |
 |---|---|
@@ -39,8 +39,8 @@ No Python, Node.js, or Git required. Works on any Windows machine.
 
 **Steps:**
 1. Go to the **`dist/`** folder in this repository (or the **Releases** tab on GitHub).
-2. Download **`ai-usage-tracker.exe`**.
-3. **Double-click** `ai-usage-tracker.exe`.
+2. Download **`AIDash.exe`**.
+3. **Double-click** `AIDash.exe`.
 4. It will automatically:
    - Scan your machine for AI tool logs
    - Start the local dashboard server
@@ -49,7 +49,7 @@ No Python, Node.js, or Git required. Works on any Windows machine.
 
 > ⚠️ **Windows SmartScreen Warning**: The first time you run it, Windows may show a "Windows protected your PC" message. Click **"More info" → "Run anyway"**. This is normal for unsigned executables.
 
-> 💡 **Only your tools appear**: The dashboard detects which AI agents you have logs for and shows only those — tabs, charts, and legends are all filtered dynamically.
+> 💡 **Only your tools appear**: AIDash detects which AI agents you have logs for and shows only those — tabs, charts, and legends are all filtered dynamically.
 
 ---
 
@@ -84,9 +84,9 @@ This will auto-scan your logs, start the server, and open your browser at **[htt
 
 ---
 
-## 💻 Web Dashboard Features
+## 💻 Dashboard Features
 
-Once the dashboard is open:
+Once AIDash is open in your browser:
 
 - **Dynamic Agent Tabs**: Only shows tabs for AI tools you've actually used. Unused agents are hidden automatically.
 - **Hourly Activity (24 Hours)**: Line chart of token usage per hour across your active agents.
