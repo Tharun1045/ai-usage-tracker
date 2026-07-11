@@ -3,3 +3,6 @@ __pycache__/
 *.log
 .system_generated/
 test_scanner_debug.py
+# PyInstaller temp build artifacts
+build/
+*.spec

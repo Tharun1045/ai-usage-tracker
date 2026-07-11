@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import sqlite3
 import urllib.parse
@@ -8,7 +9,10 @@ from datetime import datetime, timezone, timedelta
 
 PORT = 8080
 DB_PATH = os.path.expanduser("~/.codex/codex_usage.db")
-WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
+if hasattr(sys, "_MEIPASS"):
+    WEB_DIR = os.path.join(sys._MEIPASS, "web")
+else:
+    WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)

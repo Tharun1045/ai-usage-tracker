@@ -194,8 +194,26 @@ def main():
         show_stats()
         
     elif cmd == "dashboard":
+        print("Auto-scanning local logs...")
+        try:
+            scanner.run_scan(verbose=False)
+        except Exception as e:
+            print(f"Auto-scan failed: {e}")
+            
         print("Starting local Unified AI Usage Dashboard microserver...")
         import server
+        import webbrowser
+        import threading
+        import time
+        
+        def open_browser():
+            time.sleep(1.0)
+            try:
+                webbrowser.open("http://localhost:8080")
+            except Exception:
+                pass
+                
+        threading.Thread(target=open_browser, daemon=True).start()
         server.start_server()
         
     else:
