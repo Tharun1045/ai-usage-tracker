@@ -1,5 +1,9 @@
 # AIDash — AI Usage Dashboard
 
+[![Downloads](https://img.shields.io/github/downloads/Tharun1045/ai-usage-tracker/total?style=for-the-badge&logo=windows&label=Downloads&color=4f46e5)](https://github.com/Tharun1045/ai-usage-tracker/releases/latest)
+[![Release](https://img.shields.io/github/v/release/Tharun1045/ai-usage-tracker?style=for-the-badge&color=10a37f)](https://github.com/Tharun1045/ai-usage-tracker/releases/latest)
+[![License](https://img.shields.io/github/license/Tharun1045/ai-usage-tracker?style=for-the-badge&color=d97706)](LICENSE)
+
 > 🌐 **100% Internet-Free** &nbsp;|&nbsp; 🔒 **Privacy Safe** &nbsp;|&nbsp; ⚡ **Works Offline**
 
 A local, privacy-safe token usage and cost tracker for developer AI tools. It automatically detects and visualizes your usage from the AI coding tools installed on your machine — **only showing the ones you've actually used**.
@@ -41,7 +45,7 @@ AIDash has built-in support for the following tools. It will automatically detec
 
 No Python, Node.js, or Git required. Works on any Windows machine.
 
-## ⬇️ [Download AIDash.exe](https://github.com/Tharun1045/ai-usage-tracker/raw/main/dist/AIDash.exe)
+## ⬇️ [Download AIDash.exe — Latest Release](https://github.com/Tharun1045/ai-usage-tracker/releases/latest/download/AIDash.exe)
 
 **Steps:**
 1. Click the download link above to get **`AIDash.exe`**.
