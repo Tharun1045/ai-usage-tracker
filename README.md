@@ -10,6 +10,8 @@ A local, privacy-safe token usage and cost tracker for developer AI tools. It au
 
 > **🧠 Smart Detection**: AIDash has built-in compatibility for 8 AI agents, but it will only display the tools you have actively used. If you only use Cursor and GitHub Copilot, you'll only see those two — nothing else clutters the view.
 
+![AIDash Dashboard Preview](assets/dashboard_preview.jpg)
+
 ---
 
 ## 🤖 Compatible AI Agents
